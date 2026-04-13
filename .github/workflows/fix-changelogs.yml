@@ -30,6 +30,26 @@ jobs:
       - name: Run changelog update
         run: yarn changelog:update
 
+      - name: Get PR number for this branch
+        id: pr
+        run: |
+          PR_NUMBER=$(gh pr list --head "${GITHUB_REF#refs/heads/}" --json number --jq '.[0].number')
+          if [ -n "$PR_NUMBER" ]; then
+            echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "Found PR #$PR_NUMBER"
+          else
+            echo "No PR found for this branch"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Fix missing dependency bump entries
+        if: steps.pr.outputs.number != ''
+        run: >
+          yarn workspaces foreach --all --no-private --parallel --interlaced --verbose
+          run changelog:validate --fix --currentPr "${{ steps.pr.outputs.number }}"
+        continue-on-error: true
+
       - name: Commit and push if changed
         run: |
           if git diff --quiet; then
