@@ -9,11 +9,27 @@ permissions:
   pull-requests: write
 
 jobs:
-  fix-changelogs:
-    name: Fix changelogs
+  is-fork-pull-request:
+    name: Determine whether this PR is from a fork
     if: >
       github.event.issue.pull_request &&
       contains(github.event.comment.body, '@metamaskbot check-deps')
+    runs-on: ubuntu-latest
+    outputs:
+      IS_FORK: ${{ steps.is-fork.outputs.IS_FORK }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Determine whether this PR is from a fork
+        id: is-fork
+        run: echo "IS_FORK=$(gh pr view --json isCrossRepository --jq '.isCrossRepository' "${PR_NUMBER}")" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+
+  fix-changelogs:
+    name: Fix changelogs
+    needs: is-fork-pull-request
+    if: ${{ needs.is-fork-pull-request.outputs.IS_FORK == 'false' }}
     runs-on: ubuntu-latest
     steps:
       - name: Get PR head ref
