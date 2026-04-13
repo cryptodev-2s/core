@@ -1,0 +1,45 @@
+name: Fix Changelogs
+
+on:
+  push:
+    branches:
+      - 'release/*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  fix-changelogs:
+    name: Fix changelogs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout and setup environment
+        uses: MetaMask/action-checkout-and-setup@v2
+        with:
+          is-high-risk-environment: false
+          cache-node-modules: true
+          node-version: 22.x
+
+      - name: Checkout branch by name
+        run: git checkout "${GITHUB_REF#refs/heads/}"
+
+      - name: Run changelog update
+        run: yarn changelog:update
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet; then
+            echo "No changelog changes detected."
+            exit 0
+          fi
+          echo "Changelog changes detected:"
+          git diff --stat
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A '*.md'
+          git commit -m "fix: auto-update changelogs for release"
+          git push
