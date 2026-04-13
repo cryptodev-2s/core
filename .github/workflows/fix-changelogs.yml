@@ -62,14 +62,11 @@ jobs:
           node-version: 22.x
           ref: ${{ steps.pr.outputs.sha }}
 
-      # Checkout by branch name so update-changelog.sh can detect release branches
+      # Checkout by branch name so validate-changelog.sh can detect release branches
       - name: Checkout branch by name
         run: git checkout "$PR_REF"
         env:
           PR_REF: ${{ steps.pr.outputs.ref }}
-
-      - name: Run changelog update
-        run: yarn changelog:update
 
       - name: Validate and fix dependency bump entries
         id: validate
