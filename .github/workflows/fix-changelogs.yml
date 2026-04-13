@@ -22,7 +22,6 @@ jobs:
     outputs:
       IS_FORK: ${{ steps.is-fork.outputs.IS_FORK }}
     steps:
-      - uses: actions/checkout@v4
       - name: Determine whether this PR is from a fork
         id: is-fork
         run: |
