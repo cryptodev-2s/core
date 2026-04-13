@@ -19,16 +19,18 @@ jobs:
       - name: Get PR head ref
         id: pr
         run: |
-          PR_DATA=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }} --jq '{ref: .head.ref, sha: .head.sha}')
+          PR_DATA=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '{ref: .head.ref, sha: .head.sha}')
           echo "ref=$(echo "$PR_DATA" | jq -r .ref)" >> "$GITHUB_OUTPUT"
           echo "sha=$(echo "$PR_DATA" | jq -r .sha)" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
 
       - name: React to comment
-        run: gh api repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content='+1'
+        run: gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}/reactions" -f content='+1'
         env:
           GH_TOKEN: ${{ github.token }}
+          COMMENT_ID: ${{ github.event.comment.id }}
 
       - name: Checkout and setup environment
         uses: MetaMask/action-checkout-and-setup@v2
@@ -36,10 +38,12 @@ jobs:
           is-high-risk-environment: false
           cache-node-modules: true
           node-version: 22.x
-          ref: ${{ steps.pr.outputs.ref }}
+          ref: ${{ steps.pr.outputs.sha }}
 
       - name: Checkout branch by name
-        run: git checkout "${{ steps.pr.outputs.ref }}"
+        run: git checkout "$PR_REF"
+        env:
+          PR_REF: ${{ steps.pr.outputs.ref }}
 
       - name: Run changelog update
         run: yarn changelog:update
@@ -47,8 +51,10 @@ jobs:
       - name: Fix missing dependency bump entries
         run: >
           yarn workspaces foreach --all --no-private --parallel --interlaced --verbose
-          run changelog:validate --fix --currentPr "${{ github.event.issue.number }}"
+          run changelog:validate --fix --currentPr "$PR_NUMBER"
         continue-on-error: true
+        env:
+          PR_NUMBER: ${{ github.event.issue.number }}
 
       - name: Commit and push if changed
         id: commit
@@ -67,10 +73,12 @@ jobs:
 
       - name: Comment result
         run: |
-          if [ "${{ steps.commit.outputs.changed }}" = "true" ]; then
-            gh pr comment "${{ github.event.issue.number }}" --body "Changelogs updated and pushed."
+          if [ "$CHANGED" = "true" ]; then
+            gh pr comment "$PR_NUMBER" --body "Changelogs updated and pushed."
           else
-            gh pr comment "${{ github.event.issue.number }}" --body "No changelog changes needed."
+            gh pr comment "$PR_NUMBER" --body "No changelog changes needed."
           fi
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          CHANGED: ${{ steps.commit.outputs.changed }}
