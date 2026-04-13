@@ -38,6 +38,12 @@ jobs:
     if: ${{ needs.is-fork-pull-request.outputs.IS_FORK == 'false' }}
     runs-on: ubuntu-latest
     steps:
+      - name: React to comment
+        run: gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}/reactions" -f content='+1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+
       - name: Get PR head ref
         id: pr
         run: |
@@ -47,12 +53,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.issue.number }}
-
-      - name: React to comment
-        run: gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}/reactions" -f content='+1'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          COMMENT_ID: ${{ github.event.comment.id }}
 
       - name: Checkout and setup environment
         uses: MetaMask/action-checkout-and-setup@v2
@@ -97,6 +97,8 @@ jobs:
         run: |
           if [ "$CHANGED" = "true" ]; then
             gh pr comment "$PR_NUMBER" --body "Changelogs updated and pushed."
+          elif [ "$COMMIT_OUTCOME" = "failure" ]; then
+            gh pr comment "$PR_NUMBER" --body "Failed to push changelog fixes. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
           elif [ "$VALIDATE_OUTCOME" = "failure" ]; then
             gh pr comment "$PR_NUMBER" --body "Changelog validation failed. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
           else
@@ -106,4 +108,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.issue.number }}
           CHANGED: ${{ steps.commit.outputs.changed }}
+          COMMIT_OUTCOME: ${{ steps.commit.outcome }}
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
