@@ -34,7 +34,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
 
-  fix-changelogs:
+  update-changelogs:
     name: Update changelogs
     needs: is-fork-pull-request
     if: ${{ needs.is-fork-pull-request.outputs.IS_FORK == 'false' }}
@@ -66,9 +66,11 @@ jobs:
           node-version: 22.x
           ref: ${{ steps.pr.outputs.sha }}
 
-      # Checkout by branch name so validate-changelog.sh can detect release branches
-      - name: Checkout branch by name
-        run: git checkout "$PR_REF"
+      # Fetch and checkout by branch name so git push targets the correct branch
+      - name: Checkout PR branch
+        run: |
+          git fetch origin "$PR_REF"
+          git checkout "$PR_REF"
         env:
           PR_REF: ${{ steps.pr.outputs.ref }}
 
@@ -99,12 +101,16 @@ jobs:
       - name: Comment result
         if: always()
         run: |
-          if [ "$CHANGED" = "true" ]; then
+          if [ "$CHANGED" = "true" ] && [ "$VALIDATE_OUTCOME" = "failure" ]; then
+            gh pr comment "$PR_NUMBER" --body "Changelogs updated and pushed, but some validation errors remain. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
+          elif [ "$CHANGED" = "true" ]; then
             gh pr comment "$PR_NUMBER" --body "Changelogs updated and pushed."
           elif [ "$COMMIT_OUTCOME" = "failure" ]; then
             gh pr comment "$PR_NUMBER" --body "Failed to push changelog fixes. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
           elif [ "$VALIDATE_OUTCOME" = "failure" ]; then
             gh pr comment "$PR_NUMBER" --body "Changelog validation failed. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
+          elif [ "$VALIDATE_OUTCOME" = "skipped" ] || [ "$COMMIT_OUTCOME" = "skipped" ]; then
+            gh pr comment "$PR_NUMBER" --body "Workflow failed before changelog validation. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
           else
             gh pr comment "$PR_NUMBER" --body "No changelog changes needed."
           fi
