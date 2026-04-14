@@ -3,9 +3,12 @@ name: Fix Changelogs
 on:
   issue_comment:
     types: [created]
+  pull_request:
+    branches: [main]
+    types: [opened]
 
 concurrency:
-  group: fix-changelogs-${{ github.event.issue.number }}
+  group: fix-changelogs-${{ github.event.issue.number || github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
@@ -16,8 +19,8 @@ jobs:
   is-fork-pull-request:
     name: Determine whether this PR is from a fork
     if: >
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@metamaskbot check-deps')
+      (github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')) ||
+      (github.event.issue.pull_request && contains(github.event.comment.body, '@metamaskbot check-deps'))
     runs-on: ubuntu-latest
     outputs:
       IS_FORK: ${{ steps.is-fork.outputs.IS_FORK }}
@@ -25,11 +28,11 @@ jobs:
       - name: Determine whether this PR is from a fork
         id: is-fork
         run: |
-          IS_FORK=$(gh pr view --json isCrossRepository --jq '.isCrossRepository' "$PR_NUMBER")
+          IS_FORK=$(gh pr view --json isCrossRepository --jq '.isCrossRepository' "$PR_NUMBER" --repo "$GITHUB_REPOSITORY")
           echo "IS_FORK=$IS_FORK" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
 
   fix-changelogs:
     name: Fix changelogs
@@ -38,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: React to comment
+        if: github.event_name == 'issue_comment'
         run: gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}/reactions" -f content='+1'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -51,7 +55,7 @@ jobs:
           echo "sha=$(echo "$PR_DATA" | jq -r .sha)" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
 
       - name: Checkout and setup environment
         uses: MetaMask/action-checkout-and-setup@v2
@@ -74,7 +78,7 @@ jobs:
           run changelog:validate --checkDeps --fix --currentPr "$PR_NUMBER"
         continue-on-error: true
         env:
-          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
 
       - name: Commit and push if changed
         id: commit
@@ -105,7 +109,7 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
           CHANGED: ${{ steps.commit.outputs.changed }}
           COMMIT_OUTCOME: ${{ steps.commit.outcome }}
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
