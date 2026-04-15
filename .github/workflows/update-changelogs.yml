@@ -66,10 +66,10 @@ jobs:
           node-version: 22.x
           ref: ${{ steps.pr.outputs.sha }}
 
-      # Fetch and checkout by branch name so git push targets the correct branch
+      # Fetch main for --checkDeps base comparison, and the PR branch for push
       - name: Checkout PR branch
         run: |
-          git fetch origin "$PR_REF"
+          git fetch origin main "$PR_REF"
           git checkout "$PR_REF"
         env:
           PR_REF: ${{ steps.pr.outputs.ref }}
