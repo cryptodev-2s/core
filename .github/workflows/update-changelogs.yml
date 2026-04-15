@@ -48,6 +48,7 @@ jobs:
         if: github.event_name == 'issue_comment'
         run: gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}/reactions" -f content='+1'
         env:
+          GH_TOKEN: ${{ github.token }}
           COMMENT_ID: ${{ github.event.comment.id }}
 
       - name: Checkout repository
@@ -75,6 +76,8 @@ jobs:
           for NODE_ID in $COMMENT_IDS; do
             gh api graphql -f query='mutation { minimizeComment(input: {subjectId: "'"$NODE_ID"'", classifier: OUTDATED}) { clientMutationId } }'
           done
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Validate and fix dependency bump entries
         id: validate
