@@ -40,49 +40,41 @@ jobs:
     if: ${{ needs.is-fork-pull-request.outputs.IS_FORK == 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.UPDATE_CHANGELOG_TOKEN }}
+      PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
     steps:
       - name: React to comment
         if: github.event_name == 'issue_comment'
         run: gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}/reactions" -f content='+1'
         env:
-          GH_TOKEN: ${{ github.token }}
           COMMENT_ID: ${{ github.event.comment.id }}
 
-      - name: Get PR head ref
-        id: pr
-        run: |
-          PR_DATA=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '{ref: .head.ref, sha: .head.sha}')
-          echo "ref=$(echo "$PR_DATA" | jq -r .ref)" >> "$GITHUB_OUTPUT"
-          echo "sha=$(echo "$PR_DATA" | jq -r .sha)" >> "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Use PAT to ensure the push triggers subsequent CI workflows
+          token: ${{ secrets.UPDATE_CHANGELOG_TOKEN }}
+          fetch-depth: 0
 
-      - name: Checkout and setup environment
+      - name: Checkout pull request
+        run: gh pr checkout "$PR_NUMBER"
+
+      - name: Setup environment
         uses: MetaMask/action-checkout-and-setup@v2
         with:
           is-high-risk-environment: false
           cache-node-modules: true
           node-version: 22.x
-          ref: ${{ steps.pr.outputs.sha }}
-          fetch-depth: 0
-
-      - name: Checkout PR branch
-        run: git checkout "$PR_REF"
-        env:
-          PR_REF: ${{ steps.pr.outputs.ref }}
 
       - name: Hide previous bot comments
         continue-on-error: true
         run: |
           COMMENT_IDS=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
-            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | test("^(✅|⚠️|❌) (Changelogs|Changelog|No changelog)"))) | .node_id] | .[]')
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | test("^(✅|⚠️|❌)"))) | .node_id] | .[]')
           for NODE_ID in $COMMENT_IDS; do
             gh api graphql -f query='mutation { minimizeComment(input: {subjectId: "'"$NODE_ID"'", classifier: OUTDATED}) { clientMutationId } }'
           done
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
 
       - name: Validate and fix dependency bump entries
         id: validate
@@ -90,8 +82,6 @@ jobs:
           yarn workspaces foreach --all --no-private --parallel --interlaced --verbose
           run changelog:validate --checkDeps --fix --currentPr "$PR_NUMBER"
         continue-on-error: true
-        env:
-          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
 
       - name: Commit and push if changed
         id: commit
@@ -126,7 +116,6 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
           CHANGED: ${{ steps.commit.outputs.changed }}
           COMMIT_OUTCOME: ${{ steps.commit.outcome }}
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
