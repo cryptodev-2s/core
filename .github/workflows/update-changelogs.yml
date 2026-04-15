@@ -58,21 +58,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
 
-      - name: Checkout and setup environment
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Use PAT to ensure the push triggers subsequent CI workflows
+          token: ${{ secrets.UPDATE_CHANGELOG_TOKEN }}
+          fetch-depth: 0
+
+      - name: Checkout pull request
+        run: gh pr checkout "$PR_NUMBER"
+        env:
+          GITHUB_TOKEN: ${{ secrets.UPDATE_CHANGELOG_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+
+      - name: Setup environment
         uses: MetaMask/action-checkout-and-setup@v2
         with:
           is-high-risk-environment: false
           cache-node-modules: true
           node-version: 22.x
-          ref: ${{ steps.pr.outputs.sha }}
-          fetch-depth: 0
-          # Use PAT to ensure the push triggers subsequent CI workflows
-          token: ${{ secrets.UPDATE_CHANGELOG_TOKEN }}
-
-      - name: Checkout PR branch
-        run: git checkout "$PR_REF"
-        env:
-          PR_REF: ${{ steps.pr.outputs.ref }}
 
       - name: Hide previous bot comments
         continue-on-error: true
