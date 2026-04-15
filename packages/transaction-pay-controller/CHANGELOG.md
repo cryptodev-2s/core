@@ -66,6 +66,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Bump `@metamask/base-controller` from `^9.0.1` to `^9.1.0` ([#8457](https://github.com/MetaMask/core/pull/8457))
+- Bump `@metamask/assets-controller` from `^5.0.0` to `^5.0.1` ([#5](https://github.com/MetaMask/core/pull/5))
+- Bump `@metamask/assets-controllers` from `^103.1.1` to `^104.0.0` ([#5](https://github.com/MetaMask/core/pull/5))
+- Bump `@metamask/bridge-controller` from `^70.0.1` to `^70.1.0` ([#5](https://github.com/MetaMask/core/pull/5))
+- Bump `@metamask/transaction-controller` from `^64.2.0` to `^64.3.0` ([#5](https://github.com/MetaMask/core/pull/5))
 
 ## [19.1.1]
 
