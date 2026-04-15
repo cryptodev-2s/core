@@ -65,14 +65,23 @@ jobs:
           cache-node-modules: true
           node-version: 22.x
           ref: ${{ steps.pr.outputs.sha }}
+          fetch-depth: 0
 
-      # Fetch main for --checkDeps base comparison, and the PR branch for push
       - name: Checkout PR branch
-        run: |
-          git fetch origin main "$PR_REF"
-          git checkout "$PR_REF"
+        run: git checkout "$PR_REF"
         env:
           PR_REF: ${{ steps.pr.outputs.ref }}
+
+      - name: Hide previous bot comments
+        run: |
+          COMMENT_IDS=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | test("Changelogs|Changelog|changelog"))) | .node_id] | .[]')
+          for NODE_ID in $COMMENT_IDS; do
+            gh api graphql -f query='mutation { minimizeComment(input: {subjectId: "'"$NODE_ID"'", classifier: OUTDATED}) { clientMutationId } }'
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
 
       - name: Validate and fix dependency bump entries
         id: validate
@@ -102,17 +111,17 @@ jobs:
         if: always()
         run: |
           if [ "$CHANGED" = "true" ] && [ "$VALIDATE_OUTCOME" = "failure" ]; then
-            gh pr comment "$PR_NUMBER" --body "Changelogs updated and pushed, but some validation errors remain. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
+            gh pr comment "$PR_NUMBER" --body "⚠️ Changelogs updated and pushed, but some validation errors remain. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
           elif [ "$CHANGED" = "true" ]; then
-            gh pr comment "$PR_NUMBER" --body "Changelogs updated and pushed."
+            gh pr comment "$PR_NUMBER" --body "✅ Changelogs updated and pushed."
           elif [ "$COMMIT_OUTCOME" = "failure" ]; then
-            gh pr comment "$PR_NUMBER" --body "Failed to push changelog fixes. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
+            gh pr comment "$PR_NUMBER" --body "❌ Failed to push changelog fixes. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
           elif [ "$VALIDATE_OUTCOME" = "failure" ]; then
-            gh pr comment "$PR_NUMBER" --body "Changelog validation failed. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
+            gh pr comment "$PR_NUMBER" --body "❌ Changelog validation failed. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
           elif [ "$VALIDATE_OUTCOME" = "skipped" ] || [ "$COMMIT_OUTCOME" = "skipped" ]; then
-            gh pr comment "$PR_NUMBER" --body "Workflow failed before changelog validation. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
+            gh pr comment "$PR_NUMBER" --body "❌ Workflow failed before changelog validation. Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
           else
-            gh pr comment "$PR_NUMBER" --body "No changelog changes needed."
+            gh pr comment "$PR_NUMBER" --body "✅ No changelog changes needed."
           fi
         env:
           GH_TOKEN: ${{ github.token }}
