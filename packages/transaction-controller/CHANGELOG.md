@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [64.3.0]
+
 ### Added
 
 - Add `MantleLayer1GasFeeFlow` with `tokenRatio` conversion for accurate MNT-denominated gas estimates for Mantle and MantleSepolia ([#8386](https://github.com/MetaMask/core/pull/8386))
@@ -2337,7 +2339,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
     All changes listed after this point were applied to this package following the monorepo conversion.
 
-[Unreleased]: https://github.com/MetaMask/core/compare/@metamask/transaction-controller@64.2.0...HEAD
+[Unreleased]: https://github.com/MetaMask/core/compare/@metamask/transaction-controller@64.3.0...HEAD
+[64.3.0]: https://github.com/MetaMask/core/compare/@metamask/transaction-controller@64.2.0...@metamask/transaction-controller@64.3.0
 [64.2.0]: https://github.com/MetaMask/core/compare/@metamask/transaction-controller@64.1.0...@metamask/transaction-controller@64.2.0
 [64.1.0]: https://github.com/MetaMask/core/compare/@metamask/transaction-controller@64.0.0...@metamask/transaction-controller@64.1.0
 [64.0.0]: https://github.com/MetaMask/core/compare/@metamask/transaction-controller@63.3.1...@metamask/transaction-controller@64.0.0
