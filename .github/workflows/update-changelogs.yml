@@ -67,7 +67,7 @@ jobs:
           ref: ${{ steps.pr.outputs.sha }}
           fetch-depth: 0
           # Use PAT to ensure the push triggers subsequent CI workflows
-          token: ${{ secrets.CHANGELOG_UPDATE_TOKEN }}
+          token: ${{ secrets.UPDATE_CHANGELOG_TOKEN }}
 
       - name: Checkout PR branch
         run: git checkout "$PR_REF"
