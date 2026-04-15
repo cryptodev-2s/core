@@ -73,9 +73,10 @@ jobs:
           PR_REF: ${{ steps.pr.outputs.ref }}
 
       - name: Hide previous bot comments
+        continue-on-error: true
         run: |
-          COMMENT_IDS=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | test("Changelogs|Changelog|changelog"))) | .node_id] | .[]')
+          COMMENT_IDS=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | test("^(✅|⚠️|❌) (Changelogs|Changelog|No changelog)"))) | .node_id] | .[]')
           for NODE_ID in $COMMENT_IDS; do
             gh api graphql -f query='mutation { minimizeComment(input: {subjectId: "'"$NODE_ID"'", classifier: OUTDATED}) { clientMutationId } }'
           done
