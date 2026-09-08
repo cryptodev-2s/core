@@ -9,9 +9,9 @@ on:
       - opened
       - synchronize
       - closed
+  # Required checks have to report against the merge queue's ref, so this fires
+  # here too. Both jobs skip, and a skipped job counts as a passing check.
   merge_group:
-    types:
-      - checks_requested
 
 concurrency:
   # `issue_comment` reports `refs/heads/main` as the ref no matter which pull
@@ -30,7 +30,7 @@ jobs:
     if: github.event_name == 'pull_request_target' || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: read
+      pull-requests: read # Read the pull request's changed file list.
     outputs:
       touches-wallet: ${{ steps.touches-wallet.outputs.touches-wallet }}
     steps:
@@ -73,8 +73,8 @@ jobs:
       # failing check has to be re-run by hand, which is what the bot's own
       # comment already tells contributors to do. Worth revisiting alongside the
       # extension rather than diverging here.
-      contents: write
-      pull-requests: write
+      contents: write # Commit signatures to the `cla-signatures` branch.
+      pull-requests: write # Post and update the signature status comment.
     steps:
       - name: CLA Signature Bot
         uses: MetaMask/cla-signature-bot@v4.0.0
