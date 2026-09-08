@@ -19,14 +19,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'issue_comment' && 'signatures' || github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   cla-wallet:
     uses: ./.github/workflows/cla-package.yml
-    # GITHUB_TOKEN flows automatically; no secrets: inherit needed.
-    # Caller-job permissions constrain the token inside the called workflow.
-    permissions:
-      contents: write
-      pull-requests: write
     with:
       package-path: packages/wallet
       package-name: '@metamask/wallet'
