@@ -1,0 +1,82 @@
+name: CLA Signature Bot
+
+on:
+  issue_comment:
+    types:
+      - created
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - closed
+  merge_group:
+    types:
+      - checks_requested
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  touches-wallet:
+    name: Determine whether this PR touches packages/wallet
+    if: github.event_name == 'pull_request_target' || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      touches-wallet: ${{ steps.touches-wallet.outputs.touches-wallet }}
+    steps:
+      - name: Determine whether this PR touches packages/wallet
+        id: touches-wallet
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # Collect the file list before matching. Piping `gh api` straight into
+          # `grep -q` makes `grep` exit on its first match, which SIGPIPEs `gh`
+          # and trips `pipefail`, reporting `false` for PRs that do touch the
+          # package.
+          FILES="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')"
+
+          # The trailing slash keeps sibling packages such as `packages/wallet-cli`
+          # from matching.
+          if grep -q '^packages/wallet/' <<< "$FILES"; then
+            echo 'touches-wallet=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'touches-wallet=false' >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+
+  cla-signature-bot:
+    name: CLA Signature Bot
+    needs: touches-wallet
+    if: needs.touches-wallet.outputs.touches-wallet == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # `contents` and `pull-requests` cover the signature commit and the status
+      # comment. `actions` is needed for the re-run the action performs after
+      # recording a signature, so that the failing check on the pull request
+      # picks the new signature up without a manual re-run.
+      actions: write
+      contents: write
+      pull-requests: write
+    steps:
+      - name: CLA Signature Bot
+        uses: MetaMask/cla-signature-bot@v4.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          path-to-signatures: 'cla.json'
+          url-to-cladocument: 'https://metamask.io/cla'
+          # This branch can't have protections, commits are made directly to the specified branch.
+          branch: 'cla-signatures'
+          allowlist: 'dependabot[bot],metamaskbot,metamaskbotv2[bot],metamask-ci[bot],Copilot,cursor[bot],cursoragent'
+          allow-organization-members: true
+          blockchain-storage-flag: false
