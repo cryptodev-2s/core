@@ -9,43 +9,29 @@ on:
       - opened
       - synchronize
       - closed
-  # Required checks have to report against the merge queue's ref, so this fires
-  # here too. Both jobs skip, and a skipped job counts as a passing check.
-  merge_group:
+  merge_group: # skipped jobs count as passing, so required checks still work.
 
 concurrency:
-  # `issue_comment` reports `refs/heads/main` as the ref no matter which pull
-  # request the comment is on, so every signature shares one group and they
-  # serialize. That is deliberate: the action reads `cla.json` and writes it back
-  # with the SHA it read, so two signatures recorded at once would collide.
-  #
-  # `pull_request_target` reports `refs/pull/<number>/merge`, giving one group
-  # per pull request, where cancelling a superseded run is what we want.
+  # issue_comment always reports refs/heads/main, serializing all signature
+  # commits (the action reads+writes cla.json with the same SHA, so two concurrent
+  # writes would 409). pull_request_target gets one group per PR.
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
 
 jobs:
   cla-wallet:
     uses: ./.github/workflows/cla-package.yml
-    # `GITHUB_TOKEN` flows to reusable workflows automatically; `secrets: inherit`
-    # is not needed and would unconditionally expose all secrets.
-    #
-    # Caller-job permissions constrain the token inside the called workflow, so
-    # declare the superset that cla-package.yml's jobs need.
+    # GITHUB_TOKEN flows automatically; no secrets: inherit needed.
+    # Caller-job permissions constrain the token inside the called workflow.
     permissions:
-      contents: write # cla-signature-bot: commit signatures to cla-signatures branch.
-      pull-requests: write # cla-signature-bot: post/update comment; touches-package: read file list.
+      contents: write
+      pull-requests: write
     with:
       package-path: packages/wallet
       package-name: '@metamask/wallet'
       signature-file: cla/wallet.json
-      # TEMPORARY, fork testing only. Drop this before opening the MetaMask/core PR.
-      #
-      # The allowlist is emptied so the fork owner counts as a required signer and
-      # the unsigned path can be exercised without a second account.
-      #
-      # `allow-organization-members` must be false on a user-account fork. The
-      # action calls `orgs.listMembers` with the repository owner, which 404s for
-      # a user account and throws unhandled.
+      # TEMPORARY, fork testing only. Drop before opening the MetaMask/core PR.
+      # Empty allowlist lets the fork owner be a required signer.
+      # allow-organization-members must be false on a user-account fork (orgs.listMembers 404s).
       allowlist: ''
       allow-organization-members: false

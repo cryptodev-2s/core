@@ -32,7 +32,7 @@ jobs:
     if: github.event_name == 'pull_request_target' || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: read # Read the pull request's changed file list.
+      pull-requests: read
     outputs:
       touches-package: ${{ steps.check.outputs.touches-package }}
     steps:
@@ -45,14 +45,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Collect the file list before matching. Piping `gh api` straight into
-          # `grep -q` makes `grep` exit on its first match, which SIGPIPEs `gh`
-          # and trips `pipefail`, reporting `false` for PRs that do touch the
-          # package.
+          # Capture before piping — grep exits on first match, which would SIGPIPE
+          # gh and trip pipefail, giving a false negative.
           FILES="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')"
 
-          # The trailing slash keeps sibling packages such as `packages/wallet-cli`
-          # from matching `packages/wallet`.
+          # Trailing slash prevents packages/wallet-cli from matching packages/wallet.
           if grep -q "^${PACKAGE_PATH}/" <<< "$FILES"; then
             echo 'touches-package=true' >> "$GITHUB_OUTPUT"
           else
@@ -67,17 +64,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      # Kept identical to the extension's CLA workflow on purpose. `contents`
-      # covers the signature commit, `pull-requests` the status comment.
-      #
-      # Known gap: after recording a signature the action also re-runs the pull
-      # request's blocking check, which needs `actions: write` and 403s without
-      # it. The signature still lands and the comment still updates, but the
-      # failing check has to be re-run by hand, which is what the bot's own
-      # comment already tells contributors to do. Worth revisiting alongside the
-      # extension rather than diverging here.
-      contents: write # Commit signatures to the `cla-signatures` branch.
-      pull-requests: write # Post and update the signature status comment.
+      # Matches the extension's CLA workflow. actions: write would let the bot
+      # auto-rerun the blocking check after signing, but the extension doesn't
+      # have it either — contributors are told to rerun manually instead.
+      contents: write
+      pull-requests: write
     steps:
       - name: Compute signature regex
         id: regex
@@ -86,9 +77,7 @@ jobs:
         run: |
           set -euo pipefail
           UPPER="${PACKAGE_NAME^^}"
-          # The trailing lookahead stops a signature for a package whose name is
-          # a prefix of another (e.g. `wallet` vs `wallet-cli`) from also signing
-          # this scope.
+          # Lookahead prevents wallet from also matching wallet-cli.
           echo "value=^.*I\s*HAVE\s*READ\s*THE\s*CLA\s*DOCUMENT\s*AND\s*I\s*HEREBY\s*SIGN\s*THE\s*CLA\s*FOR\s*${UPPER}(?![\w-])" >> "$GITHUB_OUTPUT"
         shell: bash
 
@@ -97,18 +86,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # Namespaced per package from the start so a second scope later gets
-          # its own file instead of us having to move signatures already on record.
           path-to-signatures: ${{ inputs.signature-file }}
           url-to-cladocument: 'https://metamask.io/cla'
-          # This branch can't have protections; commits are made directly to it.
           branch: 'cla-signatures'
-          # Scoped to the package deliberately. With the default sentence every
-          # signature collected now would be ambiguous once a second package is
-          # added, and the default regex has no end anchor, so the generic sentence
-          # would still match and sign this scope.
           signature-text: 'I have read the CLA Document and I hereby sign the CLA for ${{ inputs.package-name }}'
-          # Computed from the package name above; matched against the uppercased comment body.
           signature-regex: ${{ steps.regex.outputs.value }}
           allowlist: ${{ inputs.allowlist }}
           allow-organization-members: ${{ inputs.allow-organization-members }}
