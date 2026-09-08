@@ -1,0 +1,96 @@
+name: CLA Package (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      package-path:
+        description: 'Directory prefix matched against changed file paths, e.g. packages/wallet'
+        required: true
+        type: string
+      package-name:
+        description: 'npm package name used in the signing phrase, e.g. @metamask/wallet'
+        required: true
+        type: string
+      signature-file:
+        description: 'Path in the cla-signatures branch where signatures are stored, e.g. cla/wallet.json'
+        required: true
+        type: string
+      allowlist:
+        description: 'Comma-separated GitHub logins exempt from signing'
+        required: false
+        type: string
+        default: 'dependabot[bot],metamaskbot,metamaskbotv2[bot],metamask-ci[bot],Copilot,cursor[bot],cursoragent'
+      allow-organization-members:
+        description: 'Whether org members are automatically exempt from signing'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  touches-package:
+    name: Determine whether this PR touches ${{ inputs.package-path }}
+    if: github.event_name == 'pull_request_target' || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      touches-package: ${{ steps.check.outputs.touches-package }}
+    steps:
+      - name: Check changed files
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          PACKAGE_PATH: ${{ inputs.package-path }}
+        run: |
+          set -euo pipefail
+
+          # Capture before piping — grep exits on first match, which would SIGPIPE
+          # gh and trip pipefail, giving a false negative.
+          FILES="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')"
+
+          # Trailing slash prevents packages/wallet-cli from matching packages/wallet.
+          if grep -q "^${PACKAGE_PATH}/" <<< "$FILES"; then
+            echo 'touches-package=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'touches-package=false' >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+
+  cla-signature-bot:
+    name: CLA Signature Bot
+    needs: touches-package
+    if: needs.touches-package.outputs.touches-package == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # Matches the extension's CLA workflow. actions: write would let the bot
+      # auto-rerun the blocking check after signing, but the extension doesn't
+      # have it either — contributors are told to rerun manually instead.
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Compute signature regex
+        id: regex
+        env:
+          PACKAGE_NAME: ${{ inputs.package-name }}
+        run: |
+          set -euo pipefail
+          UPPER="${PACKAGE_NAME^^}"
+          # Lookahead prevents wallet from also matching wallet-cli.
+          echo "value=^.*I\s*HAVE\s*READ\s*THE\s*CLA\s*DOCUMENT\s*AND\s*I\s*HEREBY\s*SIGN\s*THE\s*CLA\s*FOR\s*${UPPER}(?![\w-])" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: CLA Signature Bot
+        uses: MetaMask/cla-signature-bot@v4.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          path-to-signatures: ${{ inputs.signature-file }}
+          url-to-cladocument: 'https://metamask.io/cla'
+          branch: 'cla-signatures'
+          signature-text: 'I have read the CLA Document and I hereby sign the CLA for ${{ inputs.package-name }}'
+          signature-regex: ${{ steps.regex.outputs.value }}
+          allowlist: ${{ inputs.allowlist }}
+          allow-organization-members: ${{ inputs.allow-organization-members }}
+          blockchain-storage-flag: false

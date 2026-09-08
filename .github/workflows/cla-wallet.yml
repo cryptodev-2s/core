@@ -1,0 +1,37 @@
+name: CLA - @metamask/wallet
+
+on:
+  issue_comment:
+    types:
+      - created
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - closed
+  merge_group: # skipped jobs count as passing, so required checks still work.
+
+concurrency:
+  # issue_comment always reports refs/heads/main, serializing all signature
+  # commits (the action reads+writes cla.json with the same SHA, so two concurrent
+  # writes would 409). pull_request_target gets one group per PR.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
+
+jobs:
+  cla-wallet:
+    uses: ./.github/workflows/cla-package.yml
+    # GITHUB_TOKEN flows automatically; no secrets: inherit needed.
+    # Caller-job permissions constrain the token inside the called workflow.
+    permissions:
+      contents: write
+      pull-requests: write
+    with:
+      package-path: packages/wallet
+      package-name: '@metamask/wallet'
+      signature-file: cla/wallet.json
+      # TEMPORARY, fork testing only. Drop before opening the MetaMask/core PR.
+      # Empty allowlist lets the fork owner be a required signer.
+      # allow-organization-members must be false on a user-account fork (orgs.listMembers 404s).
+      allowlist: ''
+      allow-organization-members: false

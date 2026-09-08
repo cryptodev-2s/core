@@ -8,6 +8,11 @@ rules:
       # the PR is from a fork before running, and write access is gated behind
       # the `default-branch` environment.
       - update-changelogs.yml:3:1
+      # `pull_request_target` is used safely here: The workflow never checks out
+      # or executes any code from the pull request. It only reads the PR's file
+      # list and hands the PR number to the CLA action, which talks to the
+      # GitHub API and nothing else.
+      - cla-wallet.yml:3:1
 
   dependabot-cooldown:
     config:
