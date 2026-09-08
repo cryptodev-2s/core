@@ -77,6 +77,16 @@ jobs:
           url-to-cladocument: 'https://metamask.io/cla'
           # This branch can't have protections, commits are made directly to the specified branch.
           branch: 'cla-signatures'
-          allowlist: 'dependabot[bot],metamaskbot,metamaskbotv2[bot],metamask-ci[bot],Copilot,cursor[bot],cursoragent'
-          allow-organization-members: true
+          # TEMPORARY, fork testing only. Drop this commit before opening the
+          # MetaMask/core pull request.
+          #
+          # The allowlist is emptied so the fork owner counts as a required
+          # signer and the unsigned path can be exercised without a second
+          # account.
+          #
+          # `allow-organization-members` has to be false on a fork owned by a
+          # user account. The action calls `orgs.listMembers` with the
+          # repository owner, which 404s for a user and throws unhandled.
+          allowlist: ''
+          allow-organization-members: false
           blockchain-storage-flag: false
