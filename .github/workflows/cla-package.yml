@@ -1,0 +1,115 @@
+name: CLA Package (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      package-path:
+        description: 'Directory prefix matched against changed file paths, e.g. packages/wallet'
+        required: true
+        type: string
+      package-name:
+        description: 'npm package name used in the signing phrase, e.g. @metamask/wallet'
+        required: true
+        type: string
+      signature-file:
+        description: 'Path in the cla-signatures branch where signatures are stored, e.g. cla/wallet.json'
+        required: true
+        type: string
+      allowlist:
+        description: 'Comma-separated GitHub logins exempt from signing'
+        required: false
+        type: string
+        default: 'dependabot[bot],metamaskbot,metamaskbotv2[bot],metamask-ci[bot],Copilot,cursor[bot],cursoragent'
+      allow-organization-members:
+        description: 'Whether org members are automatically exempt from signing'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  touches-package:
+    name: Determine whether this PR touches ${{ inputs.package-path }}
+    if: github.event_name == 'pull_request_target' || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read # Read the pull request's changed file list.
+    outputs:
+      touches-package: ${{ steps.check.outputs.touches-package }}
+    steps:
+      - name: Check changed files
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          PACKAGE_PATH: ${{ inputs.package-path }}
+        run: |
+          set -euo pipefail
+
+          # Collect the file list before matching. Piping `gh api` straight into
+          # `grep -q` makes `grep` exit on its first match, which SIGPIPEs `gh`
+          # and trips `pipefail`, reporting `false` for PRs that do touch the
+          # package.
+          FILES="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')"
+
+          # The trailing slash keeps sibling packages such as `packages/wallet-cli`
+          # from matching `packages/wallet`.
+          if grep -q "^${PACKAGE_PATH}/" <<< "$FILES"; then
+            echo 'touches-package=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'touches-package=false' >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+
+  cla-signature-bot:
+    name: CLA Signature Bot
+    needs: touches-package
+    if: needs.touches-package.outputs.touches-package == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # Kept identical to the extension's CLA workflow on purpose. `contents`
+      # covers the signature commit, `pull-requests` the status comment.
+      #
+      # Known gap: after recording a signature the action also re-runs the pull
+      # request's blocking check, which needs `actions: write` and 403s without
+      # it. The signature still lands and the comment still updates, but the
+      # failing check has to be re-run by hand, which is what the bot's own
+      # comment already tells contributors to do. Worth revisiting alongside the
+      # extension rather than diverging here.
+      contents: write # Commit signatures to the `cla-signatures` branch.
+      pull-requests: write # Post and update the signature status comment.
+    steps:
+      - name: Compute signature regex
+        id: regex
+        env:
+          PACKAGE_NAME: ${{ inputs.package-name }}
+        run: |
+          set -euo pipefail
+          UPPER="${PACKAGE_NAME^^}"
+          # The trailing lookahead stops a signature for a package whose name is
+          # a prefix of another (e.g. `wallet` vs `wallet-cli`) from also signing
+          # this scope.
+          echo "value=^.*I\s*HAVE\s*READ\s*THE\s*CLA\s*DOCUMENT\s*AND\s*I\s*HEREBY\s*SIGN\s*THE\s*CLA\s*FOR\s*${UPPER}(?![\w-])" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: CLA Signature Bot
+        uses: MetaMask/cla-signature-bot@v4.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Namespaced per package from the start so a second scope later gets
+          # its own file instead of us having to move signatures already on record.
+          path-to-signatures: ${{ inputs.signature-file }}
+          url-to-cladocument: 'https://metamask.io/cla'
+          # This branch can't have protections; commits are made directly to it.
+          branch: 'cla-signatures'
+          # Scoped to the package deliberately. With the default sentence every
+          # signature collected now would be ambiguous once a second package is
+          # added, and the default regex has no end anchor, so the generic sentence
+          # would still match and sign this scope.
+          signature-text: 'I have read the CLA Document and I hereby sign the CLA for ${{ inputs.package-name }}'
+          # Computed from the package name above; matched against the uppercased comment body.
+          signature-regex: ${{ steps.regex.outputs.value }}
+          allowlist: ${{ inputs.allowlist }}
+          allow-organization-members: ${{ inputs.allow-organization-members }}
+          blockchain-storage-flag: false

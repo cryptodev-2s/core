@@ -12,7 +12,7 @@ rules:
       # or executes any code from the pull request. It only reads the PR's file
       # list and hands the PR number to the CLA action, which talks to the
       # GitHub API and nothing else.
-      - cla.yml:3:1
+      - cla-wallet.yml:3:1
 
   dependabot-cooldown:
     config:
