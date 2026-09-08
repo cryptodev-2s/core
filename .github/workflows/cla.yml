@@ -14,8 +14,15 @@ on:
       - checks_requested
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
-  cancel-in-progress: false
+  # `issue_comment` reports `refs/heads/main` as the ref no matter which pull
+  # request the comment is on, so every signature shares one group and they
+  # serialize. That is deliberate: the action reads `cla.json` and writes it back
+  # with the SHA it read, so two signatures recorded at once would collide.
+  #
+  # `pull_request_target` reports `refs/pull/<number>/merge`, giving one group
+  # per pull request, where cancelling a superseded run is what we want.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
 
 jobs:
   touches-wallet:
