@@ -27,7 +27,14 @@ concurrency:
 jobs:
   cla-wallet:
     uses: ./.github/workflows/cla-package.yml
-    secrets: inherit
+    # `GITHUB_TOKEN` flows to reusable workflows automatically; `secrets: inherit`
+    # is not needed and would unconditionally expose all secrets.
+    #
+    # Caller-job permissions constrain the token inside the called workflow, so
+    # declare the superset that cla-package.yml's jobs need.
+    permissions:
+      contents: write # cla-signature-bot: commit signatures to cla-signatures branch.
+      pull-requests: write # cla-signature-bot: post/update comment; touches-package: read file list.
     with:
       package-path: packages/wallet
       package-name: '@metamask/wallet'
