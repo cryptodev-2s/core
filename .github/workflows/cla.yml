@@ -64,11 +64,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      # `contents` and `pull-requests` cover the signature commit and the status
-      # comment. `actions` is needed for the re-run the action performs after
-      # recording a signature, so that the failing check on the pull request
-      # picks the new signature up without a manual re-run.
-      actions: write
+      # Kept identical to the extension's CLA workflow on purpose. `contents`
+      # covers the signature commit, `pull-requests` the status comment.
+      #
+      # Known gap: after recording a signature the action also re-runs the pull
+      # request's blocking check, which needs `actions: write` and 403s without
+      # it. The signature still lands and the comment still updates, but the
+      # failing check has to be re-run by hand, which is what the bot's own
+      # comment already tells contributors to do. Worth revisiting alongside the
+      # extension rather than diverging here.
       contents: write
       pull-requests: write
     steps:
