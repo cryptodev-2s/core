@@ -12,10 +12,11 @@ on:
   merge_group: # skipped jobs count as passing, so required checks still work.
 
 concurrency:
-  # issue_comment always reports refs/heads/main, serializing all signature
-  # commits (the action reads+writes cla.json with the same SHA, so two concurrent
-  # writes would 409). pull_request_target gets one group per PR.
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # issue_comment → fixed "signatures" key so all signature commits serialize
+  # (two concurrent cla.json writes with the same SHA would 409).
+  # pull_request_target → per-PR-number key so concurrent PRs don't cancel each other.
+  # Both events report refs/heads/main as github.ref, so we can't use that.
+  group: ${{ github.workflow }}-${{ github.event_name == 'issue_comment' && 'signatures' || github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
 
 jobs:
