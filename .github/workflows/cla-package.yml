@@ -82,7 +82,8 @@ jobs:
         shell: bash
 
       - name: CLA Signature Bot
-        uses: MetaMask/cla-signature-bot@v4.0.0
+        # TODO: switch back to a release tag once MetaMask/cla-signature-bot#16 is merged and released.
+        uses: MetaMask/cla-signature-bot@5431125dedc87e0f57b8a292dc439c34dbc80ae8
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -91,6 +92,8 @@ jobs:
           branch: 'cla-signatures'
           signature-text: 'I have read the CLA Document and I hereby sign the CLA for ${{ inputs.package-name }}'
           signature-regex: ${{ steps.regex.outputs.value }}
+          # Unique per package so each scope keeps its own sticky comment on the PR.
+          comment-title: 'CLA Signature Action (${{ inputs.package-name }})'
           allowlist: ${{ inputs.allowlist }}
           allow-organization-members: ${{ inputs.allow-organization-members }}
           blockchain-storage-flag: false
