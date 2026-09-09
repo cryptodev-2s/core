@@ -13,6 +13,8 @@ rules:
       # list and hands the PR number to the CLA action, which talks to the
       # GitHub API and nothing else.
       - cla-wallet.yml:3:1
+      - cla-accounts-controller.yml:3:1
+      - cla-keyring-controller.yml:3:1
 
   dependabot-cooldown:
     config:
