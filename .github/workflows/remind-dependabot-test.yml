@@ -19,7 +19,9 @@ jobs:
         uses: MetaMask/github-tools/.github/actions/remind-dependabot-prs@feat/dependabot-pr-reminder
         with:
           github-token: ${{ github.token }}
-          planning-token: ${{ secrets.PLANNING_TOKEN }}
+          # Without PLANNING_TOKEN this falls back to the run's own token, which
+          # cannot read the private planning repo, so teams show as plain names.
+          planning-token: ${{ secrets.PLANNING_TOKEN || github.token }}
           repository: MetaMask/core
 
       - name: Send Slack notification
