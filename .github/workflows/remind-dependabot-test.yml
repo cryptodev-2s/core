@@ -18,6 +18,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.READ_TOKEN || github.token }}
           HAS_READ_TOKEN: ${{ secrets.READ_TOKEN != '' }}
+          RUN_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           echo "READ_TOKEN set: $HAS_READ_TOKEN"
           echo "--- who am I"
@@ -26,6 +28,10 @@ jobs:
           gh api graphql -f query='query { search(query: "repo:MetaMask/core is:pr is:open author:app/dependabot", type: ISSUE, first: 1) { issueCount } }' || true
           echo "--- all open PRs in MetaMask/core"
           gh api graphql -f query='query { search(query: "repo:MetaMask/core is:pr is:open", type: ISSUE, first: 1) { issueCount } }' || true
+          echo "--- own repo, with the run token (github.token)"
+          GH_TOKEN="$RUN_TOKEN" gh api graphql -f query="query { search(query: \"repo:$GITHUB_REPOSITORY is:pr is:open\", type: ISSUE, first: 1) { issueCount } }" || true
+          echo "--- own repo, with READ_TOKEN"
+          gh api graphql -f query="query { search(query: \"repo:$GITHUB_REPOSITORY is:pr is:open\", type: ISSUE, first: 1) { issueCount } }" || true
           echo "--- REST open PRs"
           gh api 'repos/MetaMask/core/pulls?state=open&per_page=1' --jq 'length' || true
 
