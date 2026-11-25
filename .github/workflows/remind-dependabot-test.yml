@@ -14,11 +14,34 @@ jobs:
     name: Remind
     runs-on: ubuntu-latest
     steps:
+      - name: Debug the search
+        env:
+          GH_TOKEN: ${{ secrets.READ_TOKEN || github.token }}
+          HAS_READ_TOKEN: ${{ secrets.READ_TOKEN != '' }}
+          RUN_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          echo "READ_TOKEN set: $HAS_READ_TOKEN"
+          echo "--- who am I"
+          gh api user --jq '.login' || echo "(no user for this token)"
+          echo "--- dependabot PRs in MetaMask/core"
+          gh api graphql -f query='query { search(query: "repo:MetaMask/core is:pr is:open author:app/dependabot", type: ISSUE, first: 1) { issueCount } }' || true
+          echo "--- all open PRs in MetaMask/core"
+          gh api graphql -f query='query { search(query: "repo:MetaMask/core is:pr is:open", type: ISSUE, first: 1) { issueCount } }' || true
+          echo "--- own repo, with the run token (github.token)"
+          GH_TOKEN="$RUN_TOKEN" gh api graphql -f query="query { search(query: \"repo:$GITHUB_REPOSITORY is:pr is:open\", type: ISSUE, first: 1) { issueCount } }" || true
+          echo "--- own repo, with READ_TOKEN"
+          gh api graphql -f query="query { search(query: \"repo:$GITHUB_REPOSITORY is:pr is:open\", type: ISSUE, first: 1) { issueCount } }" || true
+          echo "--- REST open PRs"
+          gh api 'repos/MetaMask/core/pulls?state=open&per_page=1' --jq 'length' || true
+
       - name: Build reminder
         id: remind
         uses: MetaMask/github-tools/.github/actions/remind-dependabot-prs@feat/dependabot-pr-reminder
         with:
-          github-token: ${{ github.token }}
+          # The run's own token only covers this fork, so reading the PRs of
+          # MetaMask/core needs a token of your own with public repository read.
+          github-token: ${{ secrets.READ_TOKEN || github.token }}
           # Without PLANNING_TOKEN this falls back to the run's own token, which
           # cannot read the private planning repo, so teams show as plain names.
           planning-token: ${{ secrets.PLANNING_TOKEN || github.token }}
