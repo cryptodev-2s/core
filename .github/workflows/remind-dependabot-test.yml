@@ -1,0 +1,31 @@
+name: Remind Dependabot test
+
+# Fork only. Runs the Dependabot PR reminder from github-tools against the real
+# MetaMask/core and posts it to the webhook in SLACK_WEBHOOK_URL.
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  remind:
+    name: Remind
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build reminder
+        id: remind
+        uses: MetaMask/github-tools/.github/actions/remind-dependabot-prs@feat/dependabot-pr-reminder
+        with:
+          github-token: ${{ github.token }}
+          planning-token: ${{ secrets.PLANNING_TOKEN }}
+          repository: MetaMask/core
+
+      - name: Send Slack notification
+        if: steps.remind.outputs.has-prs == 'true'
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: ${{ steps.remind.outputs.payload-path }}
